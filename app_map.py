@@ -82,14 +82,13 @@ if enable_watermark:
     pos_css = ""
     if wm_position == "右下": pos_css = "bottom: 25px; right: 25px;"
     elif wm_position == "左下": pos_css = "bottom: 30px; left: 15px;"
-    elif wm_position == "右上": pos_css = "top: 25px; right: 60px;" # 避開全螢幕按鈕
-    elif wm_position == "左上": pos_css = "top: 25px; left: 60px;"  # 避開縮放按鈕
+    elif wm_position == "右上": pos_css = "top: 25px; right: 60px;" 
+    elif wm_position == "左上": pos_css = "top: 25px; left: 60px;"  
 
     if wm_type == "文字":
         wm_text = st.sidebar.text_input("輸入浮水印文字", "我的專屬足跡")
         wm_color = st.sidebar.color_picker("文字顏色", "#FFFFFF")
         
-        # 使用 CSS 讓文字有陰影，確保在白底或黑底地圖上都看得清楚
         watermark_html = f"""
         <div style="position: fixed; {pos_css} z-index: 9999; font-size: 26px; font-weight: bold; color: {wm_color}; opacity: 0.85; text-shadow: 2px 2px 5px rgba(0,0,0,0.8); pointer-events: none; font-family: sans-serif;">
             {wm_text}
@@ -107,8 +106,10 @@ if enable_watermark:
             </div>
             """
 
+# --- 側邊欄：溫馨提醒區塊 ---
 st.sidebar.markdown("---")
 st.sidebar.info("💡 **如何將地圖存成圖片？**\n\n受限於互動地圖技術，建議點擊地圖右上角的 **「全螢幕按鈕 ⛶」**，並使用電腦內建截圖工具保存高畫質圖片。")
+st.sidebar.info("📌 **定位有點落差？**\n\n手機 GPS 原本即有 3~10 公尺不等的訊號飄移誤差，此為正常硬體限制。")
 
 # --- 主程式區塊 ---
 uploaded_files = st.file_uploader(
