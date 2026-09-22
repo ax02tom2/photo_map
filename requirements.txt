@@ -1,0 +1,5 @@
+streamlit
+pillow
+pandas
+folium
+streamlit-folium
