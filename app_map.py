@@ -7,9 +7,10 @@ from streamlit_folium import st_folium
 import base64
 from io import BytesIO
 
-st.set_page_config(layout="wide", page_title="照片 GPS 足跡地圖與出圖工具")
-st.title("🗺️ 照片 GPS 足跡地圖產生器 (含台灣官方圖資)")
-st.write("上傳包含定位資訊的照片，支援台灣國土測繪中心航空圖、照片彈出視窗預覽，並提供成果圖打包下載！")
+# --- 更新網頁標題 ---
+st.set_page_config(layout="wide", page_title="GPS 影像定位儀")
+st.title("🗺️ GPS 影像定位儀")
+st.write("上傳包含定位資訊的照片，自動生成專屬足跡地圖！(支援台灣官方圖資與成果匯出)")
 
 # --- 輔助函式：將度分秒 (DMS) 轉換為高精度十進位經緯度 ---
 def convert_to_decimal(value, ref):
