@@ -7,8 +7,8 @@ from streamlit_folium import st_folium
 import base64
 from io import BytesIO
 
-# --- 更新網頁標題 ---
-st.set_page_config(layout="wide", page_title="GPS 影像定位儀")
+# --- 更新網頁標題與書籤圖示 (Favicon) ---
+st.set_page_config(layout="wide", page_title="GPS 影像定位儀", page_icon="🗺️")
 st.title("🗺️ GPS 影像定位儀")
 st.write("上傳包含定位資訊的照片，自動生成專屬足跡地圖！(支援台灣官方圖資、成果匯出與浮水印功能)")
 
