@@ -10,7 +10,7 @@ from io import BytesIO
 # --- 更新網頁標題 ---
 st.set_page_config(layout="wide", page_title="GPS 影像定位儀")
 st.title("🗺️ GPS 影像定位儀")
-st.write("上傳包含定位資訊的照片，自動生成專屬足跡地圖！(支援台灣官方圖資與成果匯出)")
+st.write("上傳包含定位資訊的照片，自動生成專屬足跡地圖！(支援台灣官方圖資、成果匯出與浮水印功能)")
 
 # --- 輔助函式：將度分秒 (DMS) 轉換為高精度十進位經緯度 ---
 def convert_to_decimal(value, ref):
@@ -21,7 +21,7 @@ def convert_to_decimal(value, ref):
         decimal = degrees + (minutes / 60.0) + (seconds / 3600.0)
         if ref in ['S', 'W']:
             decimal = -decimal
-        return round(decimal, 7) # 提升至小數點後 7 位
+        return round(decimal, 7)
     except Exception:
         return None
 
@@ -68,9 +68,47 @@ map_style = st.sidebar.selectbox(
     ]
 )
 
+# --- 側邊欄：新增浮水印功能 ---
+st.sidebar.markdown("---")
+st.sidebar.header("©️ 地圖浮水印設定")
+enable_watermark = st.sidebar.checkbox("在地圖加入專屬浮水印 / Logo", value=False)
+
+watermark_html = ""
+if enable_watermark:
+    wm_type = st.sidebar.radio("浮水印類型", ["文字", "圖片 Logo"])
+    wm_position = st.sidebar.selectbox("浮水印位置", ["右下", "左下", "右上", "左上"])
+    
+    # 計算 CSS 定位
+    pos_css = ""
+    if wm_position == "右下": pos_css = "bottom: 25px; right: 25px;"
+    elif wm_position == "左下": pos_css = "bottom: 30px; left: 15px;"
+    elif wm_position == "右上": pos_css = "top: 25px; right: 60px;" # 避開全螢幕按鈕
+    elif wm_position == "左上": pos_css = "top: 25px; left: 60px;"  # 避開縮放按鈕
+
+    if wm_type == "文字":
+        wm_text = st.sidebar.text_input("輸入浮水印文字", "我的專屬足跡")
+        wm_color = st.sidebar.color_picker("文字顏色", "#FFFFFF")
+        
+        # 使用 CSS 讓文字有陰影，確保在白底或黑底地圖上都看得清楚
+        watermark_html = f"""
+        <div style="position: fixed; {pos_css} z-index: 9999; font-size: 26px; font-weight: bold; color: {wm_color}; opacity: 0.85; text-shadow: 2px 2px 5px rgba(0,0,0,0.8); pointer-events: none; font-family: sans-serif;">
+            {wm_text}
+        </div>
+        """
+    else:
+        logo_file = st.sidebar.file_uploader("上傳 Logo (建議使用背景透明的 PNG)", type=["png", "jpg", "jpeg"])
+        logo_size = st.sidebar.slider("Logo 顯示大小 (像素)", 50, 300, 120)
+        
+        if logo_file:
+            logo_b64 = base64.b64encode(logo_file.read()).decode()
+            watermark_html = f"""
+            <div style="position: fixed; {pos_css} z-index: 9999; pointer-events: none; opacity: 0.9;">
+                <img src="data:image/png;base64,{logo_b64}" style="width: {logo_size}px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5));">
+            </div>
+            """
+
 st.sidebar.markdown("---")
 st.sidebar.info("💡 **如何將地圖存成圖片？**\n\n受限於互動地圖技術，建議點擊地圖右上角的 **「全螢幕按鈕 ⛶」**，並使用電腦內建截圖工具保存高畫質圖片。")
-st.sidebar.info("📌 **定位有點落差？**\n\n手機 GPS 原本即有 3~10 公尺不等的訊號飄移誤差，此為正常硬體限制。")
 
 # --- 主程式區塊 ---
 uploaded_files = st.file_uploader(
@@ -144,7 +182,6 @@ if uploaded_files:
                      style="width: 100%; border-radius: 4px; display: block; margin: 0 auto;">
             </div>
             """
-            # 視窗長寬大幅縮減，貼齊縮圖
             iframe = folium.IFrame(html, width=220, height=190)
             popup = folium.Popup(iframe, max_width=220)
             
@@ -155,8 +192,12 @@ if uploaded_files:
                 icon=folium.Icon(color="red", icon="camera", prefix="fa")
             ).add_to(m)
             
-        # 加入全螢幕按鈕，方便截圖出圖
+        # 加入全螢幕按鈕
         plugins.Fullscreen(position='topright', title='展開全螢幕以方便截圖', titleCancel='退出全螢幕').add_to(m)
+
+        # 渲染浮水印 (如果有設定的話)
+        if watermark_html:
+            m.get_root().html.add_child(folium.Element(watermark_html))
 
         # 顯示網頁地圖
         st_folium(m, width="100%", height=650, returned_objects=[])
@@ -171,7 +212,7 @@ if uploaded_files:
             st.download_button(
                 label="📥 下載互動地圖 (HTML 網頁檔)",
                 data=map_html_bytes, file_name="photo_map.html", mime="text/html",
-                help="離線也能查看照片與座標點位。"
+                help="離線也能查看照片與座標點位。浮水印也會一併保留！"
             )
 
         df_export = pd.DataFrame(locations)[["檔名", "緯度 (Latitude)", "經度 (Longitude)"]]
