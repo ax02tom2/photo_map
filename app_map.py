@@ -6,9 +6,9 @@ from streamlit_folium import st_folium
 import base64
 from io import BytesIO
 
-st.set_page_config(layout="wide")
-st.title("🗺️ 照片 GPS 足跡地圖產生器 (進階預覽版)")
-st.write("上傳包含定位資訊的手機照片，可切換衛星底圖，並點選圖標預覽照片！")
+st.set_page_config(layout="wide", page_title="照片 GPS 足跡地圖與出圖工具")
+st.title("🗺️ 照片 GPS 足跡地圖產生器 (含台灣官方圖資)")
+st.write("上傳包含定位資訊的照片，支援台灣國土測繪中心航空圖、照片彈出視窗預覽，並提供成果圖打包下載！")
 
 # --- 輔助函式：將度分秒 (DMS) 轉換為十進位經緯度 ---
 def convert_to_decimal(value, ref):
@@ -45,25 +45,33 @@ def get_gps_coordinates(image):
         return None
     return None
 
-# --- 輔助函式：將圖片轉為 Base64 以便在地圖上顯示 ---
-def get_image_base64(image, max_size=(250, 250)):
+# --- 輔助函式：將圖片轉為 Base64 縮圖 ---
+def get_image_base64(image, max_size=(260, 260)):
     img_copy = image.copy()
     img_copy.thumbnail(max_size)
     buffered = BytesIO()
-    # 統一轉為 RGB 避免 RGBA 存 JPEG 報錯
-    img_copy.convert("RGB").save(buffered, format="JPEG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    return img_str
+    img_copy.convert("RGB").save(buffered, format="JPEG", quality=85)
+    return base64.b64encode(buffered.getvalue()).decode()
 
-# --- 側邊欄：地圖底圖設定 ---
-st.sidebar.header("🗺️ 地圖設定")
+# --- 側邊欄：地圖底圖選擇 ---
+st.sidebar.header("🗺️ 地圖底圖切換")
 map_style = st.sidebar.selectbox(
-    "選擇地圖底圖",
-    ["預設街道圖 (OpenStreetMap)", "衛星航空圖 (Esri World Imagery)", "深色模式 (CartoDB Dark Matter)"]
+    "選擇底圖來源",
+    [
+        "內政部正射影像圖 (臺灣航空空照圖)",
+        "內政部通用電子地圖套疊正射圖 (空照+地名)",
+        "內政部臺灣通用電子地圖 (EMAP)",
+        "Esri 全球衛星影像圖 (World Imagery)",
+        "OpenStreetMap (國際標準街圖)"
+    ]
 )
 
 # --- 主程式區塊 ---
-uploaded_files = st.file_uploader("請選擇手機拍攝的照片 (需開啟定位功能)", type=["jpg", "jpeg"], accept_multiple_files=True)
+uploaded_files = st.file_uploader(
+    "請選擇手機拍攝的照片 (支援 JPG/JPEG，需開啟拍照定位)", 
+    type=["jpg", "jpeg"], 
+    accept_multiple_files=True
+)
 
 if uploaded_files:
     locations = []
@@ -76,49 +84,113 @@ if uploaded_files:
             if coords:
                 img_b64 = get_image_base64(img)
                 locations.append({
-                    "filename": f.name,
-                    "latitude": coords[0],
-                    "longitude": coords[1],
+                    "檔名": f.name,
+                    "緯度 (Latitude)": coords[0],
+                    "經度 (Longitude)": coords[1],
                     "image_b64": img_b64
                 })
 
     if locations:
         st.success(f"✅ 成功讀取 {len(locations)} 張照片的 GPS 座標！")
         
-        # 計算地圖中心點
-        avg_lat = sum(loc["latitude"] for loc in locations) / len(locations)
-        avg_lon = sum(loc["longitude"] for loc in locations) / len(locations)
+        # 計算中心點與地圖邊界
+        avg_lat = sum(loc["緯度 (Latitude)"] for loc in locations) / len(locations)
+        avg_lon = sum(loc["經度 (Longitude)"] for loc in locations) / len(locations)
         
-        # 建立基礎地圖
-        m = folium.Map(location=[avg_lat, avg_lon], zoom_start=13)
-        
-        # 根據選擇套用不同底圖
-        if map_style == "衛星航空圖 (Esri World Imagery)":
+        # 初始化 Folium 地圖
+        m = folium.Map(location=[avg_lat, avg_lon], zoom_start=14, tiles=None)
+
+        # 載入所選底圖 (WMTS / TileLayer)
+        if map_style == "內政部正射影像圖 (臺灣航空空照圖)":
+            folium.TileLayer(
+                tiles='https://wmts.nlsc.gov.tw/wmts/PHOTO2/default/GoogleMapsCompatible/{z}/{y}/{x}',
+                attr='內政部國土測繪中心 (NLSC)',
+                name='正射影像圖',
+                max_zoom=20
+            ).add_to(m)
+        elif map_style == "內政部通用電子地圖套疊正射圖 (空照+地名)":
+            folium.TileLayer(
+                tiles='https://wmts.nlsc.gov.tw/wmts/PHOTO_MIX/default/GoogleMapsCompatible/{z}/{y}/{x}',
+                attr='內政部國土測繪中心 (NLSC)',
+                name='混合正射影像圖',
+                max_zoom=20
+            ).add_to(m)
+        elif map_style == "內政部臺灣通用電子地圖 (EMAP)":
+            folium.TileLayer(
+                tiles='https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}',
+                attr='內政部國土測繪中心 (NLSC)',
+                name='臺灣通用電子地圖',
+                max_zoom=20
+            ).add_to(m)
+        elif map_style == "Esri 全球衛星影像圖 (World Imagery)":
             folium.TileLayer(
                 tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
                 attr='Esri',
                 name='Esri Satellite',
                 max_zoom=18
             ).add_to(m)
-        elif map_style == "深色模式 (CartoDB Dark Matter)":
-            folium.TileLayer('cartodbdark_matter').add_to(m)
-            
-        # 將照片標記加入地圖
+        else:
+            folium.TileLayer(
+                tiles='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                attr='OpenStreetMap contributors',
+                name='OpenStreetMap',
+                max_zoom=19
+            ).add_to(m)
+
+        # 標記照片點位
         for loc in locations:
-            # 建立包含 Base64 圖片的 HTML 標籤
-            html = f'<img src="data:image/jpeg;base64,{loc["image_b64"]}" style="width: 250px; border-radius: 8px;">'
-            iframe = folium.IFrame(html, width=270, height=270)
-            popup = folium.Popup(iframe, max_width=270)
+            html = f"""
+            <div style="text-align: center; font-family: sans-serif;">
+                <div style="font-size: 13px; font-weight: bold; margin-bottom: 6px; word-break: break-all;">
+                    {loc["檔名"]}
+                </div>
+                <img src="data:image/jpeg;base64,{loc['image_b64']}" 
+                     style="width: 250px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+                <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                    {loc['緯度 (Latitude)']:.6f}, {loc['經度 (Longitude)']:.6f}
+                </div>
+            </div>
+            """
+            iframe = folium.IFrame(html, width=280, height=310)
+            popup = folium.Popup(iframe, max_width=290)
             
             folium.Marker(
-                location=[loc["latitude"], loc["longitude"]],
+                location=[loc["緯度 (Latitude)"], loc["經度 (Longitude)"]],
                 popup=popup,
-                tooltip=loc["filename"],
+                tooltip=loc["檔名"],
                 icon=folium.Icon(color="red", icon="camera", prefix="fa")
             ).add_to(m)
+
+        # 顯示網頁地圖
+        st_folium(m, width=1100, height=600, returned_objects=[])
+
+        # --- 📤 成果出圖與匯出區塊 ---
+        st.markdown("---")
+        st.subheader("📤 成果出圖與資料匯出")
+        col1, col2 = st.columns(2)
+
+        # 1. 匯出互動式地圖 HTML 檔
+        map_html_bytes = m.get_root().render().encode("utf-8")
+        with col1:
+            st.download_button(
+                label="📥 下載互動式地圖成果 (HTML 網頁檔)",
+                data=map_html_bytes,
+                file_name="photo_gps_map.html",
+                mime="text/html",
+                help="下載後可直接用任何電腦的瀏覽器開啟，離線也能查看照片與座標點位。"
+            )
+
+        # 2. 匯出 CSV 檔 (供 QGIS/Excel 使用)
+        df_export = pd.DataFrame(locations)[["檔名", "緯度 (Latitude)", "經度 (Longitude)"]]
+        csv_bytes = df_export.to_csv(index=False).encode('utf-8-sig')
+        with col2:
+            st.download_button(
+                label="📊 下載 GPS 座標清單 (CSV 檔)",
+                data=csv_bytes,
+                file_name="photo_coordinates.csv",
+                mime="text/csv",
+                help="可直接匯入 QGIS 進行圖層疊加或以 Excel 開啟。"
+            )
             
-        # 顯示互動式地圖
-        st_folium(m, width=1000, height=600, returned_objects=[])
-        
     else:
-        st.warning("⚠️ 找不到 GPS 資訊。請確認檔案未經壓縮。")
+        st.warning("⚠️ 所選照片皆未偵測到 GPS 資訊，請確認相機設定有開啟定位權限。")
