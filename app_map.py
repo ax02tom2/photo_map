@@ -200,8 +200,8 @@ if uploaded_files:
         if watermark_html:
             m.get_root().html.add_child(folium.Element(watermark_html))
 
-        # 顯示網頁地圖
-        st_folium(m, width="100%", height=650, returned_objects=[])
+        # 顯示網頁地圖 (高度提升至 800，並強制填滿寬度)
+        st_folium(m, use_container_width=True, height=800, returned_objects=[])
 
         # --- 📤 成果匯出區塊 ---
         st.markdown("---")
